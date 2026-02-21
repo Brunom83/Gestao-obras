@@ -39,3 +39,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# DADOS REAIS DA EMPRESA E UPLOADS (Bloqueio Total contra Sweepers)
+public/uploads/
+*.csv
+*.xlsx
+*.xls
+
+# Ignora ficheiros de importação de dados que possas ter criado com dados reais
+# (Se tiveres um JSON específico com o stock, ele vai ser ignorado)
+*.json
+!package.json
+!tsconfig.json
+!package-lock.json
+
+prisma/seed.ts

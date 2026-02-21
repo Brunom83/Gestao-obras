@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// O Enum define as regras estritas dos cargos (como as leis dos Reinos)
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+model User {
+  id          String    @id @default(cuid())
+  name        String?
+  email       String?   @unique
+  password    String?   // Onde vai ficar o hash do bcrypt
+  role        Role      @default(USER)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Material {
+  id          String   @id @default(cuid())
+  descricao   String
+  medidas     String?  
+  quantidade  Float    @default(0)
+  unidade     String?  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  obras       MaterialObra[]
+
+  @@map("materiais") 
+}
+
+model Obra {
+  id          String    @id @default(cuid())
+  nome        String    
+  localizacao String?   
+  estado      String    @default("EM_CURSO") 
+  dataInicio  DateTime  @default(now())
+  dataFim     DateTime? 
+  
+  // Campos financeiros
+  orcamento   Float?    
+  custoTotal  Float     @default(0) 
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relações
+  materiais     MaterialObra[]
+  documentos    Documento[]
+  registosHoras RegistoHoras[]
+
+  @@map("obras")
+}
+
+// Tabela de ligação: Regista a saída de material para a obra
+model MaterialObra {
+  id          String   @id @default(cuid())
+  quantidade  Float    
+  dataRegisto DateTime @default(now())
+
+  obraId      String
+  obra        Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id])
+
+  @@map("materiais_obra")
+}
+
+// Tabela para o repositório de documentos
+model Documento {
+  id              String   @id @default(cuid())
+  nomeOriginal    String   
+  caminhoFicheiro String   
+  tamanho         Int      
+  tipo            String   
+  categoria       String   
+  dataUpload      DateTime @default(now())
+
+  obraId          String
+  obra            Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  @@map("documentos")
+}
+
+// Representa qualquer pessoa da empresa (Coordenador, Chefe, Operário)
+model Funcionario {
+  id          String   @id @default(cuid())
+  nome        String
+  cargo       String   // Ex: "COORDENADOR", "CHEFE_EQUIPA", "OPERARIO"
+  custoHora   Float    @default(0) 
+  
+  // Histórico de horas trabalhadas em qualquer obra
+  horas       RegistoHoras[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("funcionarios")
+}
+
+// A Folha de Horas Diária que o Chefe preenche
+model RegistoHoras {
+  id            String   @id @default(cuid())
+  data          DateTime @default(now())
+  horas         Float    // Mudámos de 'quantidade' para 'horas' para não confundir com materiais
+  descricao     String?  
+
+  // Quem é o trabalhador
+  funcionarioId String
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  // Em que obra foi
+  obraId        String
+  obra          Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
+
+  // Quem validou as horas no terreno
+  registadoPor  String?  
+
+  @@map("registos_horas")
+}
