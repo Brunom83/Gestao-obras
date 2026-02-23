@@ -56,3 +56,5 @@ public/uploads/
 !package-lock.json
 
 prisma/seed.ts
+docker-compose.yml
+.gitignore
