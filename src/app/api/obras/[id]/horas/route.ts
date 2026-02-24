@@ -47,21 +47,3 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Erro interno do servidor HP" }, { status: 500 })
   }
 }
-
-// Rota DELETE: Apaga a obra inteira
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const resolvedParams = await params;
-    
-    // O Cascade na base de dados (que metemos no schema) vai garantir 
-    // que as horas, materiais e documentos desta obra também são limpos automaticamente!
-    await prisma.obra.delete({
-      where: { id: resolvedParams.id }
-    })
-    
-    return NextResponse.json({ message: "Obra eliminada com sucesso" }, { status: 200 })
-  } catch (error) {
-    console.error("Erro ao eliminar obra:", error)
-    return NextResponse.json({ error: "Erro interno do servidor HP." }, { status: 500 })
-  }
-}

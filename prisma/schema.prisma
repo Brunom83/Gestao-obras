@@ -31,15 +31,28 @@ model User {
 }
 
 model Material {
-  id          String   @id @default(cuid())
-  descricao   String
-  medidas     String?  
-  quantidade  Float    @default(0)
-  unidade     String?  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  descricao         String
+  medidas           String?  
+  
+  // --- AS NOVAS GAVETAS DO MOTOR (Preparação para a Hilti e Filtros) ---
+  referenciaInterna String?  // Para o código da Hilti/Interno (O QR Code vai ler isto!)
+  categoria         String?  // Ex: "Parafuso", "Viga", "Consumível"
+  norma             String?  // Ex: "EN 15048"
+  diametro          String?  // Ex: "M10", "IPE200"
+  comprimento       String?  // Ex: "30mm", "6m"
+  tratamento        String?  // Ex: "Zincado", "Galvanizado"
+  classe            String?  // Ex: "8.8", "10.9"
+  fotoUrl           String?  // Preparação para as futuras fotos
+  fichaUrl          String?  // Preparação para os PDFs
+  // ----------------------------------------------------------------------
 
-  obras       MaterialObra[]
+  quantidade        Float    @default(0)
+  unidade           String?  @default("un") // Coloquei um padrão "un" para não dar erro se ficar vazio
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  obras             MaterialObra[]
 
   @@map("materiais") 
 }

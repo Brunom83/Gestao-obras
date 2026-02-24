@@ -2,14 +2,17 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { PackagePlus, PackageMinus, Save, X, Search } from "lucide-react"
+import { PackagePlus, PackageMinus, Save, X, Search, QrCode } from "lucide-react"
+import { QRCodeCanvas } from "qrcode.react"
 
+// 1. ATUALIZAMOS O TIPO: O radar agora sabe que a referência existe!
 type Material = {
   id: string
   descricao: string
   medidas: string | null
   quantidade: number
   unidade: string | null
+  referenciaInterna: string | null 
 }
 
 export default function InventarioTable({ materiaisIniciais }: { materiaisIniciais: Material[] }) {
@@ -17,14 +20,16 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
   const [loading, setLoading] = useState(false)
   const [pesquisa, setPesquisa] = useState("")
 
-  // Controlo duplo: saber qual material estamos a editar e qual a ação
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeAction, setActiveAction] = useState<'adicionar' | 'remover' | null>(null)
   const [quantidadeInput, setQuantidadeInput] = useState("")
+  
+  const [showQrCodeMat, setShowQrCodeMat] = useState<Material | null>(null)
 
   const termosPesquisa = pesquisa.toLowerCase().split(" ").filter(termo => termo.trim() !== "")
   const materiaisFiltrados = materiaisIniciais.filter(mat => {
-    const textoDaPeca = `${mat.descricao} ${mat.medidas || ""} ${mat.unidade || ""}`.toLowerCase()
+    // Agora também pesquisa pela Referência da Hilti!
+    const textoDaPeca = `${mat.descricao} ${mat.medidas || ""} ${mat.unidade || ""} ${mat.referenciaInterna || ""}`.toLowerCase()
     return termosPesquisa.every(termo => textoDaPeca.includes(termo))
   })
 
@@ -49,7 +54,7 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
         alert(data.error || "Erro ao atualizar stock.")
       }
     } catch (error) {
-      alert("Falha de comunicação com o servidor.")
+      alert("Falha de comunicação com o servidor HP.")
     } finally {
       setLoading(false)
     }
@@ -74,7 +79,7 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
             value={pesquisa}
             onChange={(e) => setPesquisa(e.target.value)}
             className="block w-full pl-10 bg-slate-900 border border-slate-600 rounded-lg py-2.5 text-slate-200 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-            placeholder="Procurar material ou medida..."
+            placeholder="Procurar material, medida ou ref..."
           />
         </div>
       </div>
@@ -83,6 +88,7 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
         <table className="w-full text-left text-sm text-slate-300">
           <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
             <tr>
+              <th className="px-6 py-4 font-medium">Ref. Interna</th>
               <th className="px-6 py-4 font-medium">Descrição</th>
               <th className="px-6 py-4 font-medium">Medidas</th>
               <th className="px-6 py-4 font-medium text-right">Em Stock</th>
@@ -92,13 +98,17 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
           <tbody className="divide-y divide-slate-700">
             {materiaisFiltrados.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
+                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                   Nenhum material encontrado.
                 </td>
               </tr>
             ) : (
               materiaisFiltrados.map((mat) => (
                 <tr key={mat.id} className="hover:bg-slate-700/50 transition-colors">
+                  {/* Mostra a referência na tabela. Se não tiver, mostra "S/ Ref." */}
+                  <td className="px-6 py-4 font-mono text-xs text-blue-400">
+                    {mat.referenciaInterna || "S/ Ref."}
+                  </td>
                   <td className="px-6 py-4 font-medium text-slate-200">{mat.descricao}</td>
                   <td className="px-6 py-4 text-slate-500">{mat.medidas || "-"}</td>
                   
@@ -136,7 +146,17 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
                         </button>
                       </form>
                     ) : (
-                      <div className="flex justify-center gap-2">
+                        <div className="flex justify-center gap-2">
+                        <button 
+                          onClick={() => setShowQrCodeMat(mat)}
+                          className="flex items-center gap-1 p-1.5 px-3 text-slate-400 hover:text-white hover:bg-slate-600 rounded-lg transition-colors text-xs font-medium"
+                          title="Gerar QR Code"
+                        >
+                          <QrCode size={16} />
+                        </button>
+
+                        {/* Removido o botão vazio que tinhas aqui perdido */}
+                        
                         <button 
                           onClick={() => { setActiveId(mat.id); setActiveAction('adicionar'); }}
                           className="flex items-center gap-1 p-1.5 px-3 text-green-400 hover:text-green-300 hover:bg-green-400/10 border border-green-400/20 rounded-lg transition-colors text-xs font-medium"
@@ -160,6 +180,40 @@ export default function InventarioTable({ materiaisIniciais }: { materiaisInicia
           </tbody>
         </table>
       </div>
+      
+      {/* MODAL DO QR CODE INTELIGENTE */}
+      {showQrCodeMat && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 max-w-sm w-full text-center shadow-2xl relative">
+            <button 
+              onClick={() => setShowQrCodeMat(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            >
+              <X size={24} />
+            </button>
+            
+            <h3 className="text-xl font-bold text-slate-100 mb-2">{showQrCodeMat.descricao}</h3>
+            <p className="text-slate-400 text-sm mb-6">{showQrCodeMat.medidas || "Sem medidas específicas"}</p>
+            
+            <div className="bg-white p-4 rounded-xl inline-block mb-6">
+              <QRCodeCanvas 
+                // A MAGIA: Se tiver Referência Hilti usa-a. Se não, usa o ID automático.
+                value={`hilti-ref:${showQrCodeMat.referenciaInterna || showQrCodeMat.id}`} 
+                size={200} 
+                level={"H"} 
+                includeMargin={true}
+              />
+            </div>
+            
+            <p className="text-xs text-slate-500 break-all">
+              Referência do Sistema: <br/> 
+              <span className="font-bold text-lg text-slate-200">
+                {showQrCodeMat.referenciaInterna || "ID: " + showQrCodeMat.id}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
