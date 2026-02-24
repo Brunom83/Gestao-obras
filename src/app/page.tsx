@@ -5,14 +5,12 @@ import { redirect } from "next/navigation"
 export default async function HomePage() {
   const session = await getServerSession(authOptions)
 
+  // 1. Não tem o Accelecharger (sessão)? Vai para a garagem fazer o Login.
   if (!session) {
     redirect("/login")
   }
 
-  // Redirecionamento por cargo (Role)
-  if ((session.user as any).role === "SUPERADMIN") {
-    redirect("/admin/overview")
-  }
-
-  redirect("/dashboard")
+  // 2. Tem chave na ignição? Manda direto para o Cockpit principal.
+  // (A nossa Rota 1 é que vai tratar de esconder os botões lá dentro consoante o cargo)
+  redirect("/admin/overview")
 }

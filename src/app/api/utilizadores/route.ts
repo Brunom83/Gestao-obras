@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
+import bcrypt from "bcrypt"
 
 const prisma = new PrismaClient()
 
@@ -17,17 +18,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Este email já tem acesso ao sistema." }, { status: 400 })
     }
 
-    // Cria o novo utilizador na BD
+    // O Camuflador dos Silencerz: Encripta a palavra-passe em 10 rondas de segurança
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    // Cria o novo utilizador na BD com a password camuflada e irrecuperável
     const novoUser = await prisma.user.create({
       data: {
         name,
         email,
-        password, // Nota: Se no futuro instalares 'bcrypt', faz a encriptação aqui!
+        password: hashedPassword, 
         role: role || 'USER'
       }
     })
 
-    return NextResponse.json(novoUser, { status: 201 })
+    return NextResponse.json({ message: "Utilizador criado com sucesso." }, { status: 201 })
   } catch (error) {
     console.error("Erro ao criar utilizador:", error)
     return NextResponse.json({ error: "Erro interno do servidor HP." }, { status: 500 })
