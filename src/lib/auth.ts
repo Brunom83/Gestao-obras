@@ -9,7 +9,8 @@ const prisma = new PrismaClient()
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { 
-    strategy: "jwt" 
+    strategy: "jwt",
+    maxAge: 4 * 60 * 60, // A sessão expira ao fim de 4 horas (4h * 60m * 60s)
   },
   providers: [
     CredentialsProvider({

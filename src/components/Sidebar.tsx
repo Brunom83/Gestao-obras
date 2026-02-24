@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, HardHat, Package, Users, Clock, LogOut } from "lucide-react"
+import { LayoutDashboard, HardHat, Package, Users, Clock, LogOut, ShieldCheck } from "lucide-react"
+import { signOut } from "next-auth/react"
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -49,6 +50,14 @@ export default function Sidebar() {
           <Users size={20} /> Recursos Humanos
         </Link>
 
+        {/* Painel do SuperAdmin - Gestão de Contas de Login */}
+        <Link 
+          href="/admin/utilizadores" 
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${isActive('/admin/utilizadores') ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+        >
+          <ShieldCheck size={20} /> Gestão de Acessos
+        </Link>
+
         {/* Link preparado para o futuro ecrã de relatórios mensais */}
         <Link 
           href="/admin/horas" 
@@ -59,7 +68,10 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-800">
-        <button className="flex items-center gap-3 px-4 py-3 w-full text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg font-medium transition-colors">
+        <button 
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          className="flex items-center gap-3 px-4 py-3 w-full text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg font-medium transition-colors"
+        >
           <LogOut size={20} /> Sair do Sistema
         </button>
       </div>
