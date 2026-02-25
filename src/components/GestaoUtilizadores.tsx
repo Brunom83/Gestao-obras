@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react" // Importado para ler a patente atual no frontend
 import { ShieldCheck, UserPlus, Trash2, Save } from "lucide-react"
 
 type Utilizador = {
@@ -14,11 +15,15 @@ type Utilizador = {
 
 export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Utilizador[] }) {
   const router = useRouter()
+  const { data: session } = useSession()
+  const myRole = (session?.user as any)?.role
+
   const [loading, setLoading] = useState(false)
   const [loadingId, setLoadingId] = useState<string | null>(null)
-
-  // Estado do novo formulário
   const [formData, setFormData] = useState({ name: "", email: "", password: "", role: "USER" })
+
+  // A CAMUFLAGEM: Se o utilizador logado não for MASTER, remove os MASTERs da tabela.
+  const utilizadoresVisiveis = utilizadores.filter(user => myRole === 'MASTER' || user.role !== 'MASTER')
 
   const handleCriarUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,11 +53,16 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
   const handleMudarPatente = async (id: string, novaRole: string) => {
     setLoadingId(id)
     try {
-      await fetch(`/api/utilizadores/${id}`, {
+      const res = await fetch(`/api/utilizadores/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: novaRole })
       })
+      
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error)
+      }
       router.refresh()
     } finally {
       setLoadingId(null)
@@ -60,10 +70,14 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
   }
 
   const handleEliminar = async (id: string, email: string | null) => {
-    if (!confirm(`Atenção: Queres mesmo eliminar o acesso de ${email}?`)) return
+    if (!confirm(`Atenção: Pretende mesmo revogar o acesso de ${email}?`)) return
     setLoadingId(id)
     try {
-      await fetch(`/api/utilizadores/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/utilizadores/${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error)
+      }
       router.refresh()
     } finally {
       setLoadingId(null)
@@ -72,7 +86,6 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      
       {/* Coluna da Esquerda: Novo Acesso */}
       <div className="lg:col-span-1">
         <form onSubmit={handleCriarUser} className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 p-6 sticky top-8">
@@ -83,45 +96,27 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Nome</label>
-              <input
-                type="text" required value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500"
-              />
+              <input type="text" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Email Profissional</label>
-              <input
-                type="email" required value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500"
-              />
+              <input type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Palavra-passe Inicial</label>
-              <input
-                type="text" required value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500"
-              />
+              <input type="text" required value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Patente Inicial</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500"
-              >
+              <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-purple-500 focus:border-purple-500">
                 <option value="USER">USER (Apenas Vê)</option>
                 <option value="ADMIN">ADMIN (Alto Cargo)</option>
                 <option value="SUPERADMIN">SUPERADMIN (Controlo Total)</option>
+                {myRole === 'MASTER' && <option value="MASTER">MASTER (Sistema)</option>}
               </select>
             </div>
 
-            <button
-              type="submit" disabled={loading}
-              className="w-full mt-4 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-            >
+            <button type="submit" disabled={loading} className="w-full mt-4 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2">
               <Save size={20} />
               {loading ? "A Guardar..." : "Criar Utilizador"}
             </button>
@@ -135,7 +130,7 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
           <div className="p-6 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-slate-200">Contas Registadas</h2>
             <span className="bg-purple-600/20 text-purple-400 py-1 px-3 rounded-full text-sm font-medium">
-              Total: {utilizadores.length}
+              Total: {utilizadoresVisiveis.length}
             </span>
           </div>
 
@@ -149,7 +144,7 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700">
-                {utilizadores.map((user) => (
+                {utilizadoresVisiveis.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-700/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-medium text-slate-200">{user.name || "Sem Nome"}</div>
@@ -158,9 +153,10 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
                     <td className="px-6 py-4">
                       <select
                         value={user.role}
-                        disabled={loadingId === user.id}
+                        disabled={loadingId === user.id || (user.role === 'MASTER' && myRole !== 'MASTER')}
                         onChange={(e) => handleMudarPatente(user.id, e.target.value)}
                         className={`text-xs font-bold rounded p-1.5 border-none cursor-pointer outline-none focus:ring-2 focus:ring-purple-500 ${
+                          user.role === 'MASTER' ? 'bg-red-600/20 text-red-400' :
                           user.role === 'SUPERADMIN' ? 'bg-purple-600/20 text-purple-400' :
                           user.role === 'ADMIN' ? 'bg-blue-600/20 text-blue-400' :
                           'bg-slate-600/20 text-slate-300'
@@ -169,12 +165,13 @@ export default function GestaoUtilizadores({ utilizadores }: { utilizadores: Uti
                         <option value="USER" className="bg-slate-800 text-slate-300">USER</option>
                         <option value="ADMIN" className="bg-slate-800 text-blue-400">ADMIN</option>
                         <option value="SUPERADMIN" className="bg-slate-800 text-purple-400">SUPERADMIN</option>
+                        {myRole === 'MASTER' && <option value="MASTER" className="bg-slate-800 text-red-400">MASTER</option>}
                       </select>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button 
                         onClick={() => handleEliminar(user.id, user.email)}
-                        disabled={loadingId === user.id}
+                        disabled={loadingId === user.id || (user.role === 'MASTER' && myRole !== 'MASTER')}
                         className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors disabled:opacity-50"
                         title="Revogar Acesso"
                       >

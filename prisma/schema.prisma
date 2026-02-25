@@ -18,6 +18,7 @@ enum Role {
   USER
   ADMIN
   SUPERADMIN
+  MASTER // O teu acesso exclusivo de Criador
 }
 
 model User {
@@ -102,7 +103,11 @@ model Documento {
   caminhoFicheiro String   
   tamanho         Int      
   tipo            String   
-  categoria       String   
+  categoria       String
+
+  // A NOSSA GAVETA NOVA PARA O DINHEIRO (Opcional, porque uma Planta não tem valor)
+  valor           Float?   @default(0)
+
   dataUpload      DateTime @default(now())
 
   obraId          String

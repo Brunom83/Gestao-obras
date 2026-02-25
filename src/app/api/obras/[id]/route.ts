@@ -21,3 +21,30 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ error: "Erro interno do servidor HP." }, { status: 500 })
   }
 }
+
+// Esta é a função que recebe o novo estado e atualiza o Cofre!
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const resolvedParams = await params;
+    const body = await request.json()
+    const { estado } = body
+
+    if (!estado) {
+      return NextResponse.json({ error: "Estado inválido." }, { status: 400 })
+    }
+
+    // O verdadeiro Accelecharger: se a obra for "CONCLUIDA", regista a data do fim automaticamente!
+    const obraAtualizada = await prisma.obra.update({
+      where: { id: resolvedParams.id },
+      data: { 
+        estado,
+        dataFim: estado === 'CONCLUIDA' ? new Date() : null
+      }
+    })
+
+    return NextResponse.json(obraAtualizada, { status: 200 })
+  } catch (error) {
+    console.error("Erro ao alterar estado:", error)
+    return NextResponse.json({ error: "Erro interno do servidor HP." }, { status: 500 })
+  }
+}
