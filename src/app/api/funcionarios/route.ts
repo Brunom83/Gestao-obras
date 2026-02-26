@@ -6,18 +6,18 @@ const prisma = new PrismaClient()
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { nome, cargo, custoHora } = body
+    const { nome, cargoId, custoHora } = body
 
-    if (!nome || !cargo) {
-      return NextResponse.json({ error: "O nome e o cargo são obrigatórios." }, { status: 400 })
+    if (!nome || !cargoId) {
+      return NextResponse.json({ error: "O nome e a posição no organograma são obrigatórios." }, { status: 400 })
     }
 
-    // Injeta o novo funcionário na base de dados
+    // Injeta o novo funcionário e liga-o diretamente à caixa do organograma
     const novoFuncionario = await prisma.funcionario.create({
       data: {
         nome,
-        cargo,
-        custoHora: Number(custoHora) || 0 // Se vier vazio, assume 0
+        cargoId,
+        custoHora: Number(custoHora) || 0
       }
     })
 

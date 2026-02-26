@@ -116,11 +116,15 @@ model Documento {
   @@map("documentos")
 }
 
-// Representa qualquer pessoa da empresa (Coordenador, Chefe, Operário)
+// Representa qualquer pessoa da empresa
 model Funcionario {
   id          String   @id @default(cuid())
   nome        String
-  cargo       String   // Ex: "COORDENADOR", "CHEFE_EQUIPA", "OPERARIO"
+  
+  // A NOSSA NOVA GAVETA: Ligação à tabela do Organograma!
+  cargoId     String?
+  cargo       CargoOrganograma? @relation(fields: [cargoId], references: [id])
+  
   custoHora   Float    @default(0) 
   
   // Histórico de horas trabalhadas em qualquer obra
@@ -151,4 +155,29 @@ model RegistoHoras {
   registadoPor  String?  
 
   @@map("registos_horas")
+}
+
+// O mapa rígido do teu orga.drawio!
+model CargoOrganograma {
+  id              String   @id @default(cuid())
+  
+  // Ex: "Departamento de Produção"
+  departamento    String   
+  
+  // Ex: "Equipa Fábrica" (Para manter a tua hierarquia intacta)
+  subDepartamento String?  
+  
+  // Ex: "Serralheiros" ou "Coordenador de Soldadura"
+  nome            String   @unique 
+  
+  // Identifica se é o líder do departamento (para futuras aprovações de tickets)
+  isChefia        Boolean  @default(false) 
+  
+  // Uma cor visual para as etiquetas no ecrã (Odoo style visual, mas Teku style rules)
+  cor             String   @default("#2563eb")
+
+  // Os trabalhadores colados a esta caixa do organograma
+  funcionarios    Funcionario[]
+
+  @@map("cargos_organograma")
 }
