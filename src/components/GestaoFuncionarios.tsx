@@ -17,7 +17,6 @@ type Funcionario = {
   nome: string
   cargoId: string | null
   cargo: CargoOrganograma | null // Incluímos o cargo vindo do include do Prisma
-  custoHora: number
 }
 
 export default function GestaoFuncionarios({ 
@@ -33,7 +32,6 @@ export default function GestaoFuncionarios({
   const [formData, setFormData] = useState({
     nome: "",
     cargoId: "", // Agora guardamos o ID da etiqueta escolhida
-    custoHora: ""
   })
 
   // Agrupar os cargos por Departamento para ficar bonito no Dropdown
@@ -59,7 +57,7 @@ export default function GestaoFuncionarios({
       })
 
       if (res.ok) {
-        setFormData({ nome: "", cargoId: "", custoHora: "" })
+        setFormData({ nome: "", cargoId: "" })
         router.refresh()
       } else {
         const data = await res.json()
@@ -123,15 +121,6 @@ export default function GestaoFuncionarios({
                   </optgroup>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Custo por Hora (€) *</label>
-              <input
-                type="number" step="0.01" min="0" required value={formData.custoHora}
-                onChange={(e) => setFormData({ ...formData, custoHora: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-600 rounded-lg p-2.5 text-white focus:ring-blue-500"
-              />
             </div>
 
             <button type="submit" disabled={loading} className="w-full mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 text-white px-4 py-3 rounded-lg font-medium flex items-center justify-center gap-2">

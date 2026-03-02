@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import AuthProvider from "@/components/AuthProvider"
 import { Toaster } from "react-hot-toast"
+import { ThemeProvider } from "@/components/ThemeProvider" // <-- ADICIONA ISTO
 
 // Carrega o pneu (fonte) base para todo o projeto
 const inter = Inter({ subsets: ["latin"] })
@@ -15,17 +16,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="pt">
-      <body className={`${inter.className} bg-slate-900 text-slate-100 min-h-screen flex flex-col`}>
-        {/* Provedor de Notificações */}
-        <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
-        {/* A nossa Antena Transmissora de Sessão */}
+    // ADICIONA suppressHydrationWarning À TAG HTML!
+    <html lang="pt" suppressHydrationWarning> 
+      <body className={`${inter.className} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300`}>
         <AuthProvider>
-          {children}
+          <ThemeProvider> {/* <-- ENVOLVE O CHILDREN AQUI */}
+            {children}
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

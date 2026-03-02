@@ -7,9 +7,19 @@ const prisma = new PrismaClient()
 export const dynamic = 'force-dynamic'
 
 export default async function UtilizadoresPage() {
-  // Vai buscar toda a malta que tem chave do sistema
+  // Puxa as contas com a etiqueta associada
   const utilizadores = await prisma.user.findMany({
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    include: { cargo: true } // O include mágico!
+  })
+
+  // Puxa as caixas do organograma para o dropdown
+  const cargosOrganograma = await prisma.cargoOrganograma.findMany({
+    orderBy: [
+      { departamento: 'asc' },
+      { subDepartamento: 'asc' },
+      { nome: 'asc' }
+    ]
   })
 
   return (
@@ -22,7 +32,10 @@ export default async function UtilizadoresPage() {
         </div>
       </div>
 
-      <GestaoUtilizadores utilizadores={utilizadores} />
+      <GestaoUtilizadores 
+        utilizadores={utilizadores} 
+        listaCargos={cargosOrganograma} 
+      />
     </div>
   )
 }

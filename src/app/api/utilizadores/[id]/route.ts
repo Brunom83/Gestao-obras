@@ -10,7 +10,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const session = await getServerSession(authOptions)
     const patenteAtual = (session?.user as any)?.role
 
-    // Apenas SUPERADMIN e MASTER têm acesso à rota de edição
     if (!['SUPERADMIN', 'MASTER'].includes(patenteAtual)) {
       return NextResponse.json({ error: "Acesso Negado." }, { status: 403 })
     }
@@ -18,42 +17,45 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const resolvedParams = await params;
     const targetId = resolvedParams.id;
     const body = await request.json()
-    const { role: novaRole } = body
+    
+    // Agora o body pode trazer a 'role' OU o 'cargoId'
+    const { role: novaRole, cargoId } = body
 
-    if (!['USER', 'ADMIN', 'SUPERADMIN', 'MASTER'].includes(novaRole)) {
-      return NextResponse.json({ error: "Patente inválida." }, { status: 400 })
-    }
-
-    // Procura o utilizador alvo para verificar a patente atual dele
     const targetUser = await prisma.user.findUnique({ where: { id: targetId } })
-    if (!targetUser) {
-      return NextResponse.json({ error: "Utilizador não encontrado." }, { status: 404 })
-    }
+    if (!targetUser) return NextResponse.json({ error: "Utilizador não encontrado." }, { status: 404 })
 
-    // A BLINDAGEM DO MASTER: 
-    // 1. Um SuperAdmin não pode alterar uma conta Master
     if (targetUser.role === 'MASTER' && patenteAtual !== 'MASTER') {
       return NextResponse.json({ error: "Acesso Restrito. Contas de Sistema são imutáveis." }, { status: 403 })
     }
 
-    // 2. Um SuperAdmin não pode promover alguém a Master
-    if (novaRole === 'MASTER' && patenteAtual !== 'MASTER') {
-      return NextResponse.json({ error: "Privilégios insuficientes para atribuir patente de Sistema." }, { status: 403 })
+    // Criamos um objeto apenas com as peças que queremos atualizar
+    const dataToUpdate: any = {}
+    
+    if (novaRole) {
+      if (!['USER', 'ADMIN', 'SUPERADMIN', 'MASTER'].includes(novaRole)) return NextResponse.json({ error: "Patente inválida." }, { status: 400 })
+      if (novaRole === 'MASTER' && patenteAtual !== 'MASTER') return NextResponse.json({ error: "Privilégios insuficientes para atribuir patente de Sistema." }, { status: 403 })
+      dataToUpdate.role = novaRole
+    }
+
+    // Se o pedido trouxer uma etiqueta nova (mesmo que seja vazia para limpar)
+    if (cargoId !== undefined) {
+      dataToUpdate.cargoId = cargoId === "" ? null : cargoId
     }
 
     const utilizadorAtualizado = await prisma.user.update({
       where: { id: targetId },
-      data: { role: novaRole }
+      data: dataToUpdate
     })
 
     return NextResponse.json(utilizadorAtualizado, { status: 200 })
   } catch (error) {
-    console.error("Erro ao atualizar patente:", error)
+    console.error("Erro ao atualizar dados:", error)
     return NextResponse.json({ error: "Erro interno do servidor." }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // MANTÉM O TEU CÓDIGO ORIGINAL DO DELETE AQUI
   try {
     const session = await getServerSession(authOptions)
     const patenteAtual = (session?.user as any)?.role
@@ -70,8 +72,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: "Utilizador não encontrado." }, { status: 404 })
     }
 
-    // A BLINDAGEM DE ELIMINAÇÃO:
-    // Um SuperAdmin não pode apagar a conta Master
     if (targetUser.role === 'MASTER' && patenteAtual !== 'MASTER') {
       return NextResponse.json({ error: "Acesso Restrito. Não é possível eliminar contas de Sistema." }, { status: 403 })
     }

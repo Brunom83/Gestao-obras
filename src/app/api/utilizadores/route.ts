@@ -7,7 +7,8 @@ const prisma = new PrismaClient()
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { name, email, password, role } = body
+    // Apanhamos o novo cargoId vindo do formulário
+    const { name, email, password, role, cargoId } = body
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email e palavra-passe são obrigatórios." }, { status: 400 })
@@ -18,16 +19,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Este email já tem acesso ao sistema." }, { status: 400 })
     }
 
-    // O Camuflador dos Silencerz: Encripta a palavra-passe em 10 rondas de segurança
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Cria o novo utilizador na BD com a password camuflada e irrecuperável
+    // O Accelecharger injeta o cargoId direto no cofre
     const novoUser = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword, 
-        role: role || 'USER'
+        role: role || 'USER',
+        cargoId: cargoId || null // Se não escolher, fica nulo sem dar erro
       }
     })
 

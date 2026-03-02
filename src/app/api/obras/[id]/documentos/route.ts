@@ -5,12 +5,12 @@ import path from 'path'
 
 const prisma = new PrismaClient()
 
+// O TEU CÓDIGO ORIGINAL DO POST (INTACTO)
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const resolvedParams = await params;
     const obraId = resolvedParams.id;
     
-    // Ao contrário de texto (JSON), ficheiros viajam em "FormData"
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const descricao = formData.get('descricao') as string;
@@ -25,16 +25,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     let tipo = "Desconhecido";
     let nomeOriginal = descricao;
 
-    // Se houver um ficheiro anexado, o Accelecharger de gravação entra em ação!
     if (file) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
         
-        // Dá um nome único ao ficheiro para não haver colisões no servidor HP
         const filename = Date.now() + '-' + file.name.replace(/\s+/g, '_');
         const filepath = path.join(process.cwd(), 'public/uploads', filename);
         
-        // Grava fisicamente no disco do servidor
         await writeFile(filepath, buffer);
         
         caminhoFicheiro = `/uploads/${filename}`;
@@ -43,7 +40,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         nomeOriginal = file.name;
     }
 
-    // A MANOBRA TEKU (Transação): Cria o documento E atualiza o custo da obra ao mesmo tempo!
     const resultado = await prisma.$transaction([
       prisma.documento.create({
         data: {
@@ -53,12 +49,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           tamanho,
           tipo,
           categoria: "FATURA",
-          valor // A nossa gaveta nova a ser preenchida!
+          valor
         }
       }),
       prisma.obra.update({
         where: { id: obraId },
-        data: { custoTotal: { increment: valor } }
+        data: { custoTotal: { increment: valor } } // SOMA O VALOR
       })
     ]);
 
@@ -66,5 +62,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     console.error("Erro ao gravar fatura:", error)
     return NextResponse.json({ error: "Erro no motor do servidor HP." }, { status: 500 })
+  }
+}
+
+// O NOVO CÓDIGO DO DELETE (PARA REMOVER A FATURA)
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const resolvedParams = await params;
+    const obraId = resolvedParams.id;
+    
+    const { searchParams } = new URL(request.url)
+    const docId = searchParams.get("docId")
+
+    if (!docId) return NextResponse.json({ error: "ID em falta." }, { status: 400 })
+
+    // 1. Encontrar o documento para saber qual era o valor dele
+    const fatura = await prisma.documento.findUnique({ where: { id: docId } })
+    if (!fatura) return NextResponse.json({ error: "Fatura fantasma." }, { status: 404 })
+
+    const valorDescontar = fatura.valor || 0
+
+    // 2. Apagar a fatura E subtrair o valor à obra ao mesmo tempo!
+    await prisma.$transaction([
+      prisma.documento.delete({ where: { id: docId } }),
+      prisma.obra.update({
+        where: { id: obraId },
+        data: { custoTotal: { decrement: valorDescontar } } // SUBTRAI O VALOR
+      })
+    ])
+
+    return NextResponse.json({ message: "Eliminado." }, { status: 200 })
+  } catch (error) {
+    console.error("Erro ao eliminar fatura:", error)
+    return NextResponse.json({ error: "Erro interno no servidor HP." }, { status: 500 })
   }
 }

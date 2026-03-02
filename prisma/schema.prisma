@@ -29,6 +29,13 @@ model User {
   role        Role      @default(USER)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // A NOVA GAVETA: A conta de login agora sabe a que departamento pertence!
+  cargoId     String?
+  cargo       CargoOrganograma? @relation(fields: [cargoId], references: [id])
+
+  pedidosFeitos    PedidoMaterial[] @relation("RequisitantePedido")
+  pedidosAprovados PedidoMaterial[] @relation("AprovadorPedido")
 }
 
 model Material {
@@ -54,6 +61,7 @@ model Material {
   updatedAt         DateTime @updatedAt
 
   obras             MaterialObra[]
+  pedidosMaterial PedidoMaterial[]
 
   @@map("materiais") 
 }
@@ -76,7 +84,7 @@ model Obra {
   // Relações
   materiais     MaterialObra[]
   documentos    Documento[]
-  registosHoras RegistoHoras[]
+  pedidosMaterial PedidoMaterial[]
 
   @@map("obras")
 }
@@ -124,11 +132,6 @@ model Funcionario {
   // A NOSSA NOVA GAVETA: Ligação à tabela do Organograma!
   cargoId     String?
   cargo       CargoOrganograma? @relation(fields: [cargoId], references: [id])
-  
-  custoHora   Float    @default(0) 
-  
-  // Histórico de horas trabalhadas em qualquer obra
-  horas       RegistoHoras[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -136,26 +139,6 @@ model Funcionario {
   @@map("funcionarios")
 }
 
-// A Folha de Horas Diária que o Chefe preenche
-model RegistoHoras {
-  id            String   @id @default(cuid())
-  data          DateTime @default(now())
-  horas         Float    // Mudámos de 'quantidade' para 'horas' para não confundir com materiais
-  descricao     String?  
-
-  // Quem é o trabalhador
-  funcionarioId String
-  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
-
-  // Em que obra foi
-  obraId        String
-  obra          Obra        @relation(fields: [obraId], references: [id], onDelete: Cascade)
-
-  // Quem validou as horas no terreno
-  registadoPor  String?  
-
-  @@map("registos_horas")
-}
 
 // O mapa rígido do teu orga.drawio!
 model CargoOrganograma {
@@ -178,6 +161,36 @@ model CargoOrganograma {
 
   // Os trabalhadores colados a esta caixa do organograma
   funcionarios    Funcionario[]
+  users           User[] // Adiciona esta linha!
 
   @@map("cargos_organograma")
+}
+
+// O Sistema de Requisições (Tickets)
+model PedidoMaterial {
+  id           String   @id @default(cuid())
+  quantidade   Float
+  estado       String   @default("PENDENTE") // Pode ser: PENDENTE, APROVADO, REJEITADO
+  
+  // Quando foi pedido e quando foi respondido
+  dataPedido   DateTime @default(now())
+  dataResposta DateTime?
+
+  // A que obra se destina este material?
+  obraId       String
+  obra         Obra     @relation(fields: [obraId], references: [id], onDelete: Cascade)
+  
+  // Que material é?
+  materialId   String
+  material     Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  // Quem fez o pedido? (A magia do Cascade resolve o teu bug!)
+  requisitanteId String
+  requisitante   User     @relation("RequisitantePedido", fields: [requisitanteId], references: [id], onDelete: Cascade)
+
+  // Quem aprovou no escritório?
+  aprovadorId    String?
+  aprovador      User?    @relation("AprovadorPedido", fields: [aprovadorId], references: [id], onDelete: SetNull)
+
+  @@map("pedidos_material")
 }
