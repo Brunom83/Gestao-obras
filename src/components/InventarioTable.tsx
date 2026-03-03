@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { PackagePlus, PackageMinus, Save, X, Search, QrCode, ClipboardList, Building2 } from "lucide-react"
+import { PackagePlus, PackageMinus, Save, X, Search, QrCode, ClipboardList, Building2, Tag, Check, Edit2, Trash2 } from "lucide-react"
 import { QRCodeCanvas } from "qrcode.react"
 import toast from "react-hot-toast"
 
@@ -37,6 +37,10 @@ export default function InventarioTable({
   const [modalRequisicao, setModalRequisicao] = useState<Material | null>(null)
   const [reqData, setReqData] = useState({ obraId: "", quantidade: "" })
 
+  // AS NOVAS PEÇAS (DECLARADAS ANTES DO RETURN!)
+  const [editRefId, setEditRefId] = useState<string | null>(null)
+  const [newRefValue, setNewRefValue] = useState("")
+
   const isAdminOrHigher = ["ADMIN", "SUPERADMIN", "MASTER"].includes(userRole)
 
   const termosPesquisa = pesquisa.toLowerCase().split(" ").filter(termo => termo.trim() !== "")
@@ -45,6 +49,48 @@ export default function InventarioTable({
     return termosPesquisa.every(termo => textoDaPeca.includes(termo))
   })
 
+  // MOTOR DE GRAVAR REFERÊNCIA
+  const handleGravarReferencia = async (id: string) => {
+    if (!newRefValue.trim()) return
+    try {
+      const res = await fetch(`/api/materiais/${id}/referencia`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referencia: newRefValue })
+      })
+      if (res.ok) {
+        setEditRefId(null)
+        setNewRefValue("")
+        router.refresh()
+      } else {
+        const data = await res.json()
+        alert(data.error)
+      }
+    } catch (error) {
+      alert("Falha de comunicação.")
+    }
+  }
+
+  const handleApagarReferencia = async (id: string) => {
+    if (!confirm("Atenção: Queres mesmo remover esta referência? O QR Code atual vai deixar de funcionar!")) return;
+    try {
+      const res = await fetch(`/api/materiais/${id}/referencia`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referencia: null }) // Dispara o míssil de limpeza
+      })
+      if (res.ok) {
+        router.refresh()
+      } else {
+        const data = await res.json()
+        alert(data.error)
+      }
+    } catch (error) {
+      alert("Falha de comunicação.")
+    }
+  }
+
+  // MOTOR DE STOCK
   const handleStock = async (e: React.FormEvent, id: string) => {
     e.preventDefault()
     setLoading(true)
@@ -71,6 +117,7 @@ export default function InventarioTable({
     }
   }
 
+  // MOTOR DE REQUISIÇÕES
   const handleRequisicao = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!modalRequisicao) return
@@ -100,6 +147,7 @@ export default function InventarioTable({
     }
   }
 
+  // O TUBO DE ESCAPE (TUDO O QUE VAI PARA O ECRÃ)
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden relative transition-colors">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors">
@@ -143,7 +191,47 @@ export default function InventarioTable({
             ) : (
               materiaisFiltrados.map((mat) => (
                 <tr key={mat.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                  <td className="px-6 py-4 font-mono text-xs text-blue-600 dark:text-blue-400 font-medium">{mat.referenciaInterna || "S/ Ref."}</td>
+                  
+                  {/* A COLUNA DA REFERÊNCIA (BOTÕES SEMPRE VISÍVEIS) */}
+                  <td className="px-6 py-4 font-mono text-xs font-medium">
+                    {editRefId === mat.id ? (
+                      <div className="flex items-center gap-1">
+                        <input 
+                          type="text" autoFocus value={newRefValue} onChange={e => setNewRefValue(e.target.value)}
+                          className="w-28 px-2 py-1 bg-white dark:bg-slate-900 border border-blue-400 rounded text-slate-900 dark:text-white outline-none uppercase shadow-lg" 
+                          placeholder="NOVA-REF" 
+                        />
+                        <button onClick={() => handleGravarReferencia(mat.id)} className="p-1.5 bg-green-600 text-white rounded hover:bg-green-500 transition-colors"><Check size={14}/></button>
+                        <button onClick={() => setEditRefId(null)} className="p-1.5 bg-slate-400 text-white rounded hover:bg-slate-500 transition-colors"><X size={14}/></button>
+                      </div>
+                    ) : mat.referenciaInterna ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-blue-600 dark:text-blue-400 font-bold">{mat.referenciaInterna}</span>
+                        
+                        {/* BOTÕES DE EDITAR/APAGAR SEMPRE VISÍVEIS PARA ADMIN */}
+                        {isAdminOrHigher && (
+                          <div className="flex gap-1 border-l border-slate-200 dark:border-slate-700 pl-2">
+                            <button onClick={() => { setEditRefId(mat.id); setNewRefValue(mat.referenciaInterna!); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded transition-colors" title="Editar Referência">
+                              <Edit2 size={14} />
+                            </button>
+                            <button onClick={() => handleApagarReferencia(mat.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded transition-colors" title="Apagar Referência">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      isAdminOrHigher ? (
+                        <button onClick={() => { setEditRefId(mat.id); setNewRefValue(""); }} className="text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 flex items-center gap-1 transition-colors bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded border border-amber-200 dark:border-amber-500/30">
+                          <Tag size={14} /> Atribuir Ref
+                        </button>
+                      ) : (
+                        <span className="text-slate-400">Sem Ref.</span>
+                      )
+                    )}
+                  </td>
+                  {/* FIM DA COLUNA DA REFERÊNCIA */}
+
                   <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">{mat.descricao}</td>
                   <td className="px-6 py-4 text-slate-600 dark:text-slate-500">{mat.medidas || "-"}</td>
                   <td className={`px-6 py-4 text-right font-bold ${mat.quantidade < 10 ? 'text-amber-500' : 'text-blue-600 dark:text-blue-400'}`}>
@@ -196,7 +284,7 @@ export default function InventarioTable({
         </table>
       </div>
       
-      {/* MODAL DO QR CODE (Com Pintura Dupla) */}
+      {/* MODAL DO QR CODE */}
       {showQrCodeMat && (
         <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/80 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowQrCodeMat(null)}}>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full text-center shadow-2xl relative transition-colors">
@@ -216,7 +304,7 @@ export default function InventarioTable({
         </div>
       )}
 
-      {/* MODAL DE REQUISIÇÃO (Com Pintura Dupla) */}
+      {/* MODAL DE REQUISIÇÃO */}
       {modalRequisicao && (
         <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/80 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setModalRequisicao(null)}}>
           <form onSubmit={handleRequisicao} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 max-w-md w-full shadow-2xl relative transition-colors">
@@ -256,6 +344,7 @@ export default function InventarioTable({
               <button type="submit" disabled={loading} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-500 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white p-4 rounded-xl font-bold uppercase tracking-wider transition-colors">
                 {loading ? "A Transmitir..." : "Enviar Pedido"}
               </button>
+              
             </div>
           </form>
         </div>

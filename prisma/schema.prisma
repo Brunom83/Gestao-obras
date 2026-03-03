@@ -44,7 +44,7 @@ model Material {
   medidas           String?  
   
   // --- AS NOVAS GAVETAS DO MOTOR (Preparação para a Hilti e Filtros) ---
-  referenciaInterna String?  // Para o código da Hilti/Interno (O QR Code vai ler isto!)
+  referenciaInterna String? @unique  // Para o código da Hilti/Interno (O QR Code vai ler isto!)
   categoria         String?  // Ex: "Parafuso", "Viga", "Consumível"
   norma             String?  // Ex: "EN 15048"
   diametro          String?  // Ex: "M10", "IPE200"
