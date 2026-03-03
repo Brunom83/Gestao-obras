@@ -37,7 +37,6 @@ export default function InventarioTable({
   const [modalRequisicao, setModalRequisicao] = useState<Material | null>(null)
   const [reqData, setReqData] = useState({ obraId: "", quantidade: "" })
 
-  // AS NOVAS PEÇAS (DECLARADAS ANTES DO RETURN!)
   const [editRefId, setEditRefId] = useState<string | null>(null)
   const [newRefValue, setNewRefValue] = useState("")
 
@@ -71,13 +70,14 @@ export default function InventarioTable({
     }
   }
 
+  // MOTOR DE APAGAR REFERÊNCIA
   const handleApagarReferencia = async (id: string) => {
     if (!confirm("Atenção: Queres mesmo remover esta referência? O QR Code atual vai deixar de funcionar!")) return;
     try {
       const res = await fetch(`/api/materiais/${id}/referencia`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ referencia: null }) // Dispara o míssil de limpeza
+        body: JSON.stringify({ referencia: null }) 
       })
       if (res.ok) {
         router.refresh()
@@ -147,7 +147,26 @@ export default function InventarioTable({
     }
   }
 
-  // O TUBO DE ESCAPE (TUDO O QUE VAI PARA O ECRÃ)
+  // --- NOVA PEÇA: MOTOR DE APAGAR O MATERIAL TODO ---
+  const handleApagarMaterial = async (id: string, descricao: string) => {
+    if (!confirm(`ALERTA VERMELHO: Queres mesmo vaporizar o material "${descricao}" de vez? Esta ação não tem volta!`)) return;
+    
+    try {
+      const res = await fetch(`/api/materiais/${id}`, {
+        method: "DELETE"
+      })
+      if (res.ok) {
+        router.refresh()
+      } else {
+        const data = await res.json()
+        // Mostra o erro se o Prisma bloquear (por ex: já foi usado numa obra)
+        alert(data.error) 
+      }
+    } catch (error) {
+      alert("Falha de comunicação com o servidor HP.")
+    }
+  }
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden relative transition-colors">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors">
@@ -192,7 +211,6 @@ export default function InventarioTable({
               materiaisFiltrados.map((mat) => (
                 <tr key={mat.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                   
-                  {/* A COLUNA DA REFERÊNCIA (BOTÕES SEMPRE VISÍVEIS) */}
                   <td className="px-6 py-4 font-mono text-xs font-medium">
                     {editRefId === mat.id ? (
                       <div className="flex items-center gap-1">
@@ -208,7 +226,6 @@ export default function InventarioTable({
                       <div className="flex items-center gap-3">
                         <span className="text-blue-600 dark:text-blue-400 font-bold">{mat.referenciaInterna}</span>
                         
-                        {/* BOTÕES DE EDITAR/APAGAR SEMPRE VISÍVEIS PARA ADMIN */}
                         {isAdminOrHigher && (
                           <div className="flex gap-1 border-l border-slate-200 dark:border-slate-700 pl-2">
                             <button onClick={() => { setEditRefId(mat.id); setNewRefValue(mat.referenciaInterna!); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded transition-colors" title="Editar Referência">
@@ -230,7 +247,6 @@ export default function InventarioTable({
                       )
                     )}
                   </td>
-                  {/* FIM DA COLUNA DA REFERÊNCIA */}
 
                   <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">{mat.descricao}</td>
                   <td className="px-6 py-4 text-slate-600 dark:text-slate-500">{mat.medidas || "-"}</td>
@@ -265,8 +281,13 @@ export default function InventarioTable({
                             <button onClick={() => { setActiveId(mat.id); setActiveAction('adicionar'); }} className="flex items-center gap-1 p-1.5 px-3 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-400/10 border border-green-200 dark:border-green-400/20 rounded-lg transition-colors text-xs font-medium">
                               <PackagePlus size={16} /> <span className="hidden sm:inline">Injetar</span>
                             </button>
-                            <button onClick={() => { setActiveId(mat.id); setActiveAction('remover'); }} className="flex items-center gap-1 p-1.5 px-3 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 border border-red-200 dark:border-red-400/20 rounded-lg transition-colors text-xs font-medium">
+                            <button onClick={() => { setActiveId(mat.id); setActiveAction('remover'); }} className="flex items-center gap-1 p-1.5 px-3 text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-400/10 border border-amber-200 dark:border-amber-400/20 rounded-lg transition-colors text-xs font-medium">
                               <PackageMinus size={16} /> <span className="hidden sm:inline">Retirar</span>
+                            </button>
+
+                            {/* --- NOVA PEÇA: BOTÃO DE APAGAR --- */}
+                            <button onClick={() => handleApagarMaterial(mat.id, mat.descricao)} className="flex items-center gap-1 p-1.5 px-3 text-red-500 hover:text-white hover:bg-red-600 border border-red-200 dark:border-red-500/30 rounded-lg transition-colors text-xs font-medium" title="Vaporizar Material do Sistema">
+                              <Trash2 size={16} /> <span className="hidden sm:inline">Apagar</span>
                             </button>
                           </>
                         ) : (
@@ -284,7 +305,7 @@ export default function InventarioTable({
         </table>
       </div>
       
-      {/* MODAL DO QR CODE */}
+      {/* MODAIS INTACTOS ABAIXO... */}
       {showQrCodeMat && (
         <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/80 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowQrCodeMat(null)}}>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full text-center shadow-2xl relative transition-colors">
@@ -304,7 +325,6 @@ export default function InventarioTable({
         </div>
       )}
 
-      {/* MODAL DE REQUISIÇÃO */}
       {modalRequisicao && (
         <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/80 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setModalRequisicao(null)}}>
           <form onSubmit={handleRequisicao} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 max-w-md w-full shadow-2xl relative transition-colors">

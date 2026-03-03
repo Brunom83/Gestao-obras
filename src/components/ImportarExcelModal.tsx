@@ -49,8 +49,37 @@ export default function ImportarExcelModal() {
     }
   }
 
+  // 2. Fase de Injeção (A gravar a sério!)
   const handleConfirmarInjecao = async () => {
-    alert("O motor de injeção definitiva será soldado no próximo passo! Por agora, o Checkup está a funcionar a 100%.")
+    if (!checkup) return
+    
+    // Aproveitamos o mesmo loading para bloquear o botão enquanto grava
+    setLoading(true)
+
+    try {
+      const res = await fetch("/api/importar-excel/confirmar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Mandamos o pacote exato que o Raio-X preparou!
+        body: JSON.stringify({
+          novos: checkup.novos,
+          atualizar: checkup.atualizar
+        })
+      })
+      
+      if (res.ok) {
+        alert("✅ Motor Injetado com Sucesso! O teu armazém está atualizado.")
+        fecharModal()
+        router.refresh() // Recarrega a tabela de trás para veres a magia acontecer
+      } else {
+        const data = await res.json()
+        alert(data.error || "Erro ao gravar na centralina.")
+      }
+    } catch (error) {
+      alert("Os Drones cortaram a comunicação durante a gravação.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const fecharModal = () => {
@@ -158,8 +187,8 @@ export default function ImportarExcelModal() {
               <button onClick={() => setCheckup(null)} className="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white p-3 rounded-lg font-bold transition-colors">
                 Cancelar Importação
               </button>
-              <button onClick={handleConfirmarInjecao} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold transition-colors shadow-lg shadow-blue-500/30">
-                Confirmar e Injetar
+              <button onClick={handleConfirmarInjecao} disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-500 text-white p-3 rounded-lg font-bold transition-colors shadow-lg shadow-blue-500/30">
+                {loading ? "A Injetar no Motor..." : "Confirmar e Injetar"}
               </button>
             </div>
           </div>
