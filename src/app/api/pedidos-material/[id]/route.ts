@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (!currentUser) return NextResponse.json({ error: "Utilizador fantasma." }, { status: 404 })
 
-    // A MESMA REGRA DE OURO APLICADA NO MOTOR DA API
+    // A TUA REGRA DE OURO MANTIDA INTACTA!
     const isBlocked = currentUser.cargo?.nome === "Coordenador Soldadura" || 
                       currentUser.cargo?.departamento === "Compras" ||
                       currentUser.role === "USER"
@@ -47,31 +47,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     // Lógica de Aprovar (Produção)
-    if (acao === 'aprovar_producao' && ticket.estado === 'AGUARDA_PRODUCAO') {
+    if (acao === 'aprovar_producao' && ticket.estado === 'PENDENTE') {
       const atualizado = await prisma.pedidoMaterial.update({
         where: { id: ticketId },
-        data: { estado: 'AGUARDA_ARMAZEM', aprovadorId: currentUser.id, dataResposta: new Date() }
+        data: { estado: 'AGUARDA_ARMAZEM', aprovadorId: currentUser.id }
       })
       return NextResponse.json(atualizado)
     }
 
-    // Lógica de Aprovar (Armazém) - Desconta o material e regista na obra
+    // Lógica de Aprovar (Armazém) - Desconta fisicamente e regista na obra sem o dinheiro
     if (acao === 'aprovar_armazem' && ticket.estado === 'AGUARDA_ARMAZEM') {
       const resultado = await prisma.$transaction(async (tx) => {
         const mat = await tx.material.findUnique({ where: { id: ticket.materialId } })
+        
+        // Escudo anti-falha de stock
         if (!mat || mat.quantidade < ticket.quantidade) {
-          throw new Error("Não há stock suficiente no armazém!")
+          throw new Error(`Stock crítico! Apenas tens ${mat?.quantidade || 0} unidades na gaveta.`)
         }
 
+        // 1. Tira da gaveta do armazém
         await tx.material.update({
           where: { id: ticket.materialId },
           data: { quantidade: mat.quantidade - ticket.quantidade }
         })
 
+        // 2. Coloca na Obra (Cabo do dinheiro desligado, só entra material físico)
         await tx.materialObra.create({
           data: { quantidade: ticket.quantidade, obraId: ticket.obraId, materialId: ticket.materialId }
         })
 
+        // 3. Carimbar o Ticket como Entregue
         return await tx.pedidoMaterial.update({
           where: { id: ticketId },
           data: { estado: 'ENTREGUE', aprovadorId: currentUser.id, dataResposta: new Date() }
@@ -80,7 +85,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json(resultado)
     }
 
-    return NextResponse.json({ error: "Ação inválida." }, { status: 400 })
+    return NextResponse.json({ error: "Ação inválida ou estado do ticket incompatível." }, { status: 400 })
 
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Erro no servidor HP." }, { status: 500 })

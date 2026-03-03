@@ -27,18 +27,18 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { materialId, obraId, quantidade } = body
 
-    if (!materialId || !obraId || !quantidade || quantidade <= 0) {
+    if (!materialId || !obraId || !quantidade || Number(quantidade) <= 0) {
       return NextResponse.json({ error: "Precisas de indicar a obra e uma quantidade válida." }, { status: 400 })
     }
 
-    // 2. Cria o Ticket com a Nova Regra: Vai direto para o painel da Produção!
+    // 2. Cria o Ticket com a Nova Regra (Carimbo 'PENDENTE' em vez do antigo)
     const novoPedido = await prisma.pedidoMaterial.create({
       data: {
         quantidade: Number(quantidade),
         obraId,
         materialId,
-        requisitanteId: currentUser.id, // Agora já temos o ID garantido!
-        estado: "AGUARDA_PRODUCAO" // A 1ª Mudança de Caixa do novo Workflow
+        requisitanteId: currentUser.id,
+        estado: "PENDENTE" // <-- A CORREÇÃO CIRÚRGICA ESTÁ AQUI!
       }
     })
 

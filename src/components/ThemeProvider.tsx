@@ -3,10 +3,9 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  return (
-    <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
-      {children}
-    </NextThemesProvider>
-  )
+// Esta é a peça mágica que diz ao TypeScript: "Aceita as props todas do next-themes!"
+type ThemeProviderProps = React.ComponentProps<typeof NextThemesProvider>
+
+export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
+  return <NextThemesProvider {...props}>{children}</NextThemesProvider>
 }
