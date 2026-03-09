@@ -35,6 +35,7 @@ model User {
   cargo       CargoOrganograma? @relation(fields: [cargoId], references: [id])
 
   pedidosFeitos    PedidoMaterial[] @relation("RequisitantePedido")
+  logsInventario  LogInventario[]
   pedidosAprovados PedidoMaterial[] @relation("AprovadorPedido")
 }
 
@@ -61,6 +62,7 @@ model Material {
   updatedAt         DateTime @updatedAt
 
   obras             MaterialObra[]
+  logsHistorico   LogInventario[]
   pedidosMaterial PedidoMaterial[]
 
   @@map("materiais") 
@@ -193,4 +195,25 @@ model PedidoMaterial {
   aprovador      User?    @relation("AprovadorPedido", fields: [aprovadorId], references: [id], onDelete: SetNull)
 
   @@map("pedidos_material")
+}
+
+// A CAIXA NEGRA DO INVENTÁRIO
+model LogInventario {
+  id            String    @id @default(cuid())
+  
+  // A que material isto diz respeito (Se o material for apagado, o ID fica nulo mas o registo não se perde)
+  materialId    String?
+  material      Material? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  
+  // Quem foi o condutor que fez a alteração
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  
+  acao          String    // Ex: "INJETADO", "REMOVIDO", "VAPORIZADO", "ENTREGUE_OBRA", "EXCEL"
+  quantidadeMov Float     // Quantidade que foi adicionada ou retirada
+  stockAnterior Float?    // Quanto havia na gaveta antes
+  stockNovo     Float?    // Como ficou a gaveta depois
+  detalhes      String?   // Opcional: "Entregue na Obra X", "Corrigido pelo Chefe", etc.
+  
+  createdAt     DateTime  @default(now())
 }

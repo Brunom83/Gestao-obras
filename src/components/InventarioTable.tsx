@@ -6,6 +6,7 @@ import { PackagePlus, PackageMinus, Save, X, Search, QrCode, ClipboardList, Buil
 import { QRCodeCanvas } from "qrcode.react"
 import toast from "react-hot-toast"
 
+// 1. O TYPE ATUALIZADO (Avisar o radar que existem dimensões)
 type Material = {
   id: string
   descricao: string
@@ -13,6 +14,8 @@ type Material = {
   quantidade: number
   unidade: string | null
   referenciaInterna: string | null 
+  diametro: string | null      
+  comprimento: string | null   
 }
 
 type Obra = {
@@ -42,13 +45,13 @@ export default function InventarioTable({
 
   const isAdminOrHigher = ["ADMIN", "SUPERADMIN", "MASTER"].includes(userRole)
 
+  // 2. RADAR DE PESQUISA AFINADO (Apanha diametros e comprimentos)
   const termosPesquisa = pesquisa.toLowerCase().split(" ").filter(termo => termo.trim() !== "")
   const materiaisFiltrados = materiaisIniciais.filter(mat => {
-    const textoDaPeca = `${mat.descricao} ${mat.medidas || ""} ${mat.unidade || ""} ${mat.referenciaInterna || ""}`.toLowerCase()
+    const textoDaPeca = `${mat.descricao} ${mat.medidas || ""} ${mat.diametro || ""} ${mat.comprimento || ""} ${mat.unidade || ""} ${mat.referenciaInterna || ""}`.toLowerCase()
     return termosPesquisa.every(termo => textoDaPeca.includes(termo))
   })
 
-  // MOTOR DE GRAVAR REFERÊNCIA
   const handleGravarReferencia = async (id: string) => {
     if (!newRefValue.trim()) return
     try {
@@ -63,14 +66,13 @@ export default function InventarioTable({
         router.refresh()
       } else {
         const data = await res.json()
-        alert(data.error)
+        toast.error(data.error)
       }
     } catch (error) {
-      alert("Falha de comunicação.")
+      toast.error("Falha de comunicação.")
     }
   }
 
-  // MOTOR DE APAGAR REFERÊNCIA
   const handleApagarReferencia = async (id: string) => {
     if (!confirm("Atenção: Queres mesmo remover esta referência? O QR Code atual vai deixar de funcionar!")) return;
     try {
@@ -83,17 +85,17 @@ export default function InventarioTable({
         router.refresh()
       } else {
         const data = await res.json()
-        alert(data.error)
+        toast.error(data.error)
       }
     } catch (error) {
-      alert("Falha de comunicação.")
+      toast.error("Falha de comunicação.")
     }
   }
 
-  // MOTOR DE STOCK
   const handleStock = async (e: React.FormEvent, id: string) => {
     e.preventDefault()
     setLoading(true)
+    const toastId = toast.loading("A atualizar gaveta...")
     try {
       const res = await fetch(`/api/materiais/${id}/stock`, {
         method: "PATCH",
@@ -102,22 +104,22 @@ export default function InventarioTable({
       })
 
       if (res.ok) {
+        toast.success("Stock atualizado!", { id: toastId })
         setActiveId(null)
         setActiveAction(null)
         setQuantidadeInput("")
         router.refresh()
       } else {
         const data = await res.json()
-        alert(data.error || "Erro ao atualizar stock.")
+        toast.error(data.error || "Erro ao atualizar stock.", { id: toastId })
       }
     } catch (error) {
-      alert("Falha de comunicação.")
+      toast.error("Falha de comunicação.", { id: toastId })
     } finally {
       setLoading(false)
     }
   }
 
-  // MOTOR DE REQUISIÇÕES
   const handleRequisicao = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!modalRequisicao) return
@@ -136,6 +138,7 @@ export default function InventarioTable({
         toast.success("Ticket submetido!", { id: toastId })
         setModalRequisicao(null)
         setReqData({ obraId: "", quantidade: "" })
+        router.refresh()
       } else {
         const error = await res.json()
         toast.error(error.error || "Erro ao fazer o pedido.", { id: toastId })
@@ -147,23 +150,22 @@ export default function InventarioTable({
     }
   }
 
-  // --- NOVA PEÇA: MOTOR DE APAGAR O MATERIAL TODO ---
   const handleApagarMaterial = async (id: string, descricao: string) => {
     if (!confirm(`ALERTA VERMELHO: Queres mesmo vaporizar o material "${descricao}" de vez? Esta ação não tem volta!`)) return;
-    
+    const toastId = toast.loading("A iniciar sequência de destruição...")
     try {
       const res = await fetch(`/api/materiais/${id}`, {
         method: "DELETE"
       })
       if (res.ok) {
+        toast.success("Peça vaporizada com sucesso!", { id: toastId })
         router.refresh()
       } else {
         const data = await res.json()
-        // Mostra o erro se o Prisma bloquear (por ex: já foi usado numa obra)
-        alert(data.error) 
+        toast.error(data.error, { id: toastId }) 
       }
     } catch (error) {
-      alert("Falha de comunicação com o servidor HP.")
+      toast.error("Falha de comunicação com o servidor HP.", { id: toastId })
     }
   }
 
@@ -225,7 +227,6 @@ export default function InventarioTable({
                     ) : mat.referenciaInterna ? (
                       <div className="flex items-center gap-3">
                         <span className="text-blue-600 dark:text-blue-400 font-bold">{mat.referenciaInterna}</span>
-                        
                         {isAdminOrHigher && (
                           <div className="flex gap-1 border-l border-slate-200 dark:border-slate-700 pl-2">
                             <button onClick={() => { setEditRefId(mat.id); setNewRefValue(mat.referenciaInterna!); }} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded transition-colors" title="Editar Referência">
@@ -249,7 +250,14 @@ export default function InventarioTable({
                   </td>
 
                   <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-200">{mat.descricao}</td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-500">{mat.medidas || "-"}</td>
+                  
+                  {/* 3. A COLUNA DAS MEDIDAS CORRIGIDA */}
+                  <td className="px-6 py-4 text-slate-600 dark:text-slate-500">
+                    {/* Se tiver diâmetro e comprimento usa-os, senão usa as "medidas", senão fica o traço */}
+                    {[mat.diametro, mat.comprimento].filter(Boolean).join(" x ") || mat.medidas || "-"}
+                  </td>
+                  
+                  {/* 4. A COLUNA DO STOCK QUE TINHA DESAPARECIDO */}
                   <td className={`px-6 py-4 text-right font-bold ${mat.quantidade < 10 ? 'text-amber-500' : 'text-blue-600 dark:text-blue-400'}`}>
                     {mat.quantidade} <span className="text-slate-500 font-normal text-xs">{mat.unidade}</span>
                   </td>
@@ -258,7 +266,7 @@ export default function InventarioTable({
                     {isAdminOrHigher && activeId === mat.id ? (
                       <form onSubmit={(e) => handleStock(e, mat.id)} className="flex items-center justify-center gap-2">
                         <input
-                          type="number" min="0.1" step="0.1" required autoFocus
+                          type="number" min="0.1" step="any" required autoFocus
                           value={quantidadeInput} onChange={(e) => setQuantidadeInput(e.target.value)}
                           className="w-20 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded p-1.5 text-slate-900 dark:text-white text-center text-sm focus:ring-blue-500 outline-none"
                           placeholder="Qtd..."
@@ -285,8 +293,7 @@ export default function InventarioTable({
                               <PackageMinus size={16} /> <span className="hidden sm:inline">Retirar</span>
                             </button>
 
-                            {/* --- NOVA PEÇA: BOTÃO DE APAGAR --- */}
-                            <button onClick={() => handleApagarMaterial(mat.id, mat.descricao)} className="flex items-center gap-1 p-1.5 px-3 text-red-500 hover:text-white hover:bg-red-600 border border-red-200 dark:border-red-500/30 rounded-lg transition-colors text-xs font-medium" title="Vaporizar Material do Sistema">
+                            <button onClick={() => handleApagarMaterial(mat.id, mat.descricao)} className="flex items-center gap-1 p-1.5 px-3 text-red-500 hover:text-white hover:bg-red-600 border border-red-200 dark:border-red-500/30 rounded-lg transition-colors text-xs font-medium ml-2" title="Vaporizar Material do Sistema">
                               <Trash2 size={16} /> <span className="hidden sm:inline">Apagar</span>
                             </button>
                           </>
@@ -305,7 +312,6 @@ export default function InventarioTable({
         </table>
       </div>
       
-      {/* MODAIS INTACTOS ABAIXO... */}
       {showQrCodeMat && (
         <div className="fixed inset-0 bg-slate-900/50 dark:bg-black/80 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowQrCodeMat(null)}}>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full text-center shadow-2xl relative transition-colors">
@@ -354,7 +360,7 @@ export default function InventarioTable({
               <div>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Quantidade ({modalRequisicao.unidade || "un"})</label>
                 <input 
-                  type="number" min="0.1" step="0.1" required
+                  type="number" min="0.1" step="any" required
                   value={reqData.quantidade} onChange={e => setReqData({...reqData, quantidade: e.target.value})}
                   placeholder={`Em stock: ${modalRequisicao.quantidade}`}
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg p-3 text-slate-900 dark:text-white focus:ring-blue-500 outline-none"
@@ -364,7 +370,6 @@ export default function InventarioTable({
               <button type="submit" disabled={loading} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-500 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white p-4 rounded-xl font-bold uppercase tracking-wider transition-colors">
                 {loading ? "A Transmitir..." : "Enviar Pedido"}
               </button>
-              
             </div>
           </form>
         </div>

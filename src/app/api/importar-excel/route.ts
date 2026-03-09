@@ -4,6 +4,16 @@ import * as xlsx from "xlsx"
 
 const prisma = new PrismaClient()
 
+// O ESMAGADOR DE TEXTO (Remove tudo o que não seja letras e números para comparar)
+function esmagarTexto(texto: string) {
+  if (!texto) return ""
+  return String(texto)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Tira acentos
+    .replace(/[^a-z0-9]/g, "")       // Tira espaços, pontos, vírgulas, tudo
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
@@ -21,7 +31,7 @@ export async function POST(request: Request) {
     const rawData = xlsx.utils.sheet_to_json(sheet) as any[]
 
     const inventarioAtual = await prisma.material.findMany({
-      select: { referenciaInterna: true, quantidade: true, descricao: true }
+      select: { id: true, referenciaInterna: true, quantidade: true, descricao: true, unidade: true }
     })
 
     const produtosNovos = []
@@ -29,31 +39,54 @@ export async function POST(request: Request) {
     const linhasComErro = []
 
     for (const row of rawData) {
-      const ref = row["Referencia"] || row["referencia"] || row["Referência"]
-      const desc = row["Descricao"] || row["descricao"] || row["Descrição"]
-      const qtdExcel = Number(row["Quantidade"] || row["quantidade"] || 0)
+      const rowNormalizado: Record<string, any> = {}
+      for (const key in row) {
+        const novaKey = esmagarTexto(key) // Limpa os nomes das colunas
+        rowNormalizado[novaKey] = row[key]
+      }
 
-      if (!ref || !desc) {
-        linhasComErro.push({ linha: row, erro: "Falta Referência ou Descrição" })
+      const refRaw = rowNormalizado["referencia"] || rowNormalizado["referenciainterna"] || rowNormalizado["codigo"] || rowNormalizado["ref"] || ""
+      const descRaw = rowNormalizado["descricao"] || rowNormalizado["designacao"] || rowNormalizado["nome"] || rowNormalizado["descredicao"] || ""
+      const qtdRaw = rowNormalizado["quantidade"] || rowNormalizado["qtd"] || rowNormalizado["stock"] || 0
+      
+      // Captura a nova coluna separada da Unidade
+      const unidRaw = rowNormalizado["un"] || rowNormalizado["unidade"] || rowNormalizado["ud"] || "un"
+
+      const refFinal = String(refRaw).trim()
+      const descFinal = String(descRaw).trim()
+      const qtdExcel = Number(qtdRaw) || 0
+      const unidFinal = String(unidRaw).trim()
+
+      if (!descFinal) {
+        linhasComErro.push({ linha: row, erro: "Falta Descrição" })
         continue
       }
 
-      const pecaExistente = inventarioAtual.find(p => p.referenciaInterna === ref)
+      // 🧠 LÓGICA DE CORRESPONDÊNCIA BLINDADA
+      let pecaExistente = inventarioAtual.find(p => p.referenciaInterna === refFinal && refFinal !== "")
+      
+      if (!pecaExistente) {
+        // Usa o esmagador para comparar o texto cru (ex: "parafusom10" === "parafusom10")
+        const descExcelEsmagada = esmagarTexto(descFinal)
+        pecaExistente = inventarioAtual.find(p => esmagarTexto(p.descricao) === descExcelEsmagada)
+      }
 
       if (pecaExistente) {
-        if (pecaExistente.quantidade !== qtdExcel) {
-          produtosAAtualizar.push({
-            referencia: ref,
-            descricao: desc,
-            qtdAntiga: pecaExistente.quantidade,
-            qtdNova: qtdExcel
-          })
-        }
+        // Se encontrou a peça, atualiza tudo o que for novo (Referência, Quantidade e a nova Unidade)
+        produtosAAtualizar.push({
+          id: pecaExistente.id, 
+          referenciaNova: refFinal,
+          descricao: pecaExistente.descricao,
+          qtdAntiga: pecaExistente.quantidade,
+          qtdNova: qtdExcel,
+          unidadeNova: unidFinal // Passa a nova unidade
+        })
       } else {
         produtosNovos.push({
-          referencia: ref,
-          descricao: desc,
-          quantidade: qtdExcel
+          referencia: refFinal,
+          descricao: descFinal,
+          quantidade: qtdExcel,
+          unidade: unidFinal
         })
       }
     }
@@ -68,6 +101,6 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error("Erro na leitura do Excel:", error)
-    return NextResponse.json({ error: "Os Drones intercetaram a leitura." }, { status: 500 })
+    return NextResponse.json({ error: "Erro na leitura do ficheiro." }, { status: 500 })
   }
 }
