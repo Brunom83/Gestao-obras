@@ -55,7 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json(atualizado)
     }
 
-    // Lógica de Aprovar (Armazém) - Desconta fisicamente e regista na obra sem o dinheiro
+    // Lógica de Aprovar (Armazém) - Desconta fisicamente, regista na obra e GRAVA NA CAIXA NEGRA
     if (acao === 'aprovar_armazem' && ticket.estado === 'AGUARDA_ARMAZEM') {
       const resultado = await prisma.$transaction(async (tx) => {
         const mat = await tx.material.findUnique({ where: { id: ticket.materialId } })
@@ -66,7 +66,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         }
 
         // 1. Tira da gaveta do armazém
-        await tx.material.update({
+        const materialAtualizado = await tx.material.update({
           where: { id: ticket.materialId },
           data: { quantidade: mat.quantidade - ticket.quantidade }
         })
@@ -77,11 +77,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         })
 
         // 3. Carimbar o Ticket como Entregue
-        return await tx.pedidoMaterial.update({
+        const ticketEntregue = await tx.pedidoMaterial.update({
           where: { id: ticketId },
           data: { estado: 'ENTREGUE', aprovadorId: currentUser.id, dataResposta: new Date() }
         })
+
+        // 4. O SENSOR 5 (A CAIXA NEGRA!) - Faltava esta injeção
+        await tx.logInventario.create({
+          data: {
+            materialId: ticket.materialId,
+            userId: currentUser.id,
+            acao: "ENTREGUE_OBRA",
+            quantidadeMov: -ticket.quantidade, // Negativo porque sai do armazém
+            stockAnterior: mat.quantidade,
+            stockNovo: materialAtualizado.quantidade,
+            detalhes: `Material entregue fisicamente à obra. (Ticket #${ticketId.slice(-6).toUpperCase()})`
+          }
+        })
+
+        return ticketEntregue
       })
+      
       return NextResponse.json(resultado)
     }
 

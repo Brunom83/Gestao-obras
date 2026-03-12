@@ -60,7 +60,12 @@ export default async function AprovacoesPage() {
         <h1 className="text-3xl font-bold text-slate-100">Torre de Controlo</h1>
       </div>
 
-      <PainelAprovacoes ticketsIniciais={pedidos} />
+      {/* 5. A PONTE: Passamos a Role e o Cargo limpos para o ecrã frontal */}
+      <PainelAprovacoes 
+        ticketsIniciais={pedidos} 
+        userRole={currentUser?.role || "USER"}
+        userCargo={currentUser?.cargo?.nome || ""}
+      />
     </div>
   )
 }

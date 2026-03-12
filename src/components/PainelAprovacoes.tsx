@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { CheckCircle, XCircle, Clock, Archive, Package, AlertCircle } from "lucide-react"
 import toast from "react-hot-toast"
@@ -17,10 +17,51 @@ type Ticket = {
   aprovador: { name: string | null } | null
 }
 
-export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais: Ticket[] }) {
+// 1. Atualizámos as Props para receber o Poder (Role) e o Crachá (Cargo)
+type Props = {
+  ticketsIniciais: Ticket[]
+  userRole: string
+  userCargo: string
+}
+
+export default function PainelAprovacoes({ ticketsIniciais, userRole, userCargo }: Props) {
   const router = useRouter()
+  
   const [loading, setLoading] = useState<string | null>(null)
   const [abaAtiva, setAbaAtiva] = useState<'PRODUCAO' | 'ARMAZEM' | 'HISTORICO'>('PRODUCAO')
+
+  // 🛡️ O NOVO RADAR DE PERMISSÕES (Mistura o RBAC com os Cargos do Prisma)
+  
+  // A. Quem tem a Chave Mestra do Sistema?
+  const isPoderAbsoluto = userRole === "MASTER" || userRole === "SUPERADMIN" || userRole === "ADMIN"
+  
+  // B. Os Crachás de Engenharia (Baseado na tua Base de Dados)
+  const cargosEngenharia = [
+    "engenheiro preparador", 
+    "diretor de obra", 
+    "engenheiro de produção"
+  ] 
+  
+  // C. Os Crachás de Armazém (Baseado na tua Base de Dados)
+  const cargosArmazem = [
+    "fiel de armazém", 
+    "responsável de logística",
+    "auxiliar de armazém"
+  ]
+
+  // Normalizamos o cargo do utilizador para minúsculas para evitar bugs de maiúsculas/minúsculas
+  const cargoNormalizado = userCargo.toLowerCase()
+
+  // O motor avalia: Ou tens o poder absoluto (RBAC), OU o teu crachá bate certo (Cargo)
+  const isEngenharia = isPoderAbsoluto || cargosEngenharia.includes(cargoNormalizado)
+  const isArmazem = isPoderAbsoluto || cargosArmazem.includes(cargoNormalizado)
+
+  // Tuning de UX: Se o utilizador for de Armazém e não for engenheiro, a aba arranca logo na secção dele!
+  useEffect(() => {
+    if (!isEngenharia && isArmazem) {
+      setAbaAtiva('ARMAZEM')
+    }
+  }, [isEngenharia, isArmazem])
 
   const handleAcao = async (id: string, acao: 'aprovar_producao' | 'aprovar_armazem' | 'rejeitar') => {
     setLoading(id)
@@ -34,7 +75,7 @@ export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais:
       })
 
       if (res.ok) {
-        toast.success("Mudança de caixa concluída!", { id: toastId })
+        toast.success("Transação concluída com sucesso!", { id: toastId })
         router.refresh()
       } else {
         const error = await res.json()
@@ -47,7 +88,6 @@ export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais:
     }
   }
 
-  // O RADAR AFINADO: 'PENDENTE' em vez de 'AGUARDA_PRODUCAO'
   const ticketsFiltrados = ticketsIniciais.filter(t => {
     if (abaAtiva === 'PRODUCAO') return t.estado === 'PENDENTE' 
     if (abaAtiva === 'ARMAZEM') return t.estado === 'AGUARDA_ARMAZEM'
@@ -57,20 +97,27 @@ export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais:
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
       
-      {/* Navegação das Abas */}
+      {/* Navegação das Abas Condicionais */}
       <div className="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-        <button 
-          onClick={() => setAbaAtiva('PRODUCAO')}
-          className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors flex justify-center items-center gap-2 ${abaAtiva === 'PRODUCAO' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-500 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-        >
-          <Clock size={18} /> Aprovação Produção
-        </button>
-        <button 
-          onClick={() => setAbaAtiva('ARMAZEM')}
-          className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors flex justify-center items-center gap-2 ${abaAtiva === 'ARMAZEM' ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 border-b-2 border-amber-600 dark:border-amber-500 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-        >
-          <Package size={18} /> Saída de Armazém
-        </button>
+        
+        {isEngenharia && (
+          <button 
+            onClick={() => setAbaAtiva('PRODUCAO')}
+            className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors flex justify-center items-center gap-2 ${abaAtiva === 'PRODUCAO' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-500 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          >
+            <Clock size={18} /> Aprovação Produção
+          </button>
+        )}
+
+        {isArmazem && (
+          <button 
+            onClick={() => setAbaAtiva('ARMAZEM')}
+            className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors flex justify-center items-center gap-2 ${abaAtiva === 'ARMAZEM' ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 border-b-2 border-amber-600 dark:border-amber-500 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          >
+            <Package size={18} /> Saída de Armazém
+          </button>
+        )}
+
         <button 
           onClick={() => setAbaAtiva('HISTORICO')}
           className={`flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors flex justify-center items-center gap-2 ${abaAtiva === 'HISTORICO' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200 border-b-2 border-slate-900 dark:border-slate-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
@@ -120,7 +167,7 @@ export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais:
                   </div>
                 </div>
 
-                {/* Botões de Ação */}
+                {/* Botões de Ação Condicionais */}
                 {abaAtiva !== 'HISTORICO' && (
                   <div className="flex items-center gap-2 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-t-0 border-slate-200 dark:border-slate-700 shrink-0">
                     
@@ -132,7 +179,7 @@ export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais:
                       <XCircle size={18} /> Rejeitar
                     </button>
 
-                    {abaAtiva === 'PRODUCAO' && (
+                    {abaAtiva === 'PRODUCAO' && isEngenharia && (
                       <button 
                         onClick={() => handleAcao(ticket.id, 'aprovar_producao')}
                         disabled={loading === ticket.id}
@@ -142,7 +189,7 @@ export default function PainelAprovacoes({ ticketsIniciais }: { ticketsIniciais:
                       </button>
                     )}
 
-                    {abaAtiva === 'ARMAZEM' && (
+                    {abaAtiva === 'ARMAZEM' && isArmazem && (
                       <button 
                         onClick={() => handleAcao(ticket.id, 'aprovar_armazem')}
                         disabled={loading === ticket.id}
